@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Ball Trajectories 2D</title>
+  <style>
+    :root{
+      --page-bg:#111;
+      --panel:#1a1a1a;
+      --stroke:#cfcfcf;
+      --muted:#9aa0a6;
+      --stage-bg:#111;
+      --ball:#ff0000;
+    }
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+    body{
+      margin:0; background:var(--page-bg); color:#eee; min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .wrap{
+      width:min(1120px, 96vw);
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:18px;
+      padding:18px;
+    }
+    .stage{
+      position:relative;
+      height:min(600px, 78vh);
+      border:2px solid var(--stroke);
+      border-radius:10px;
+      background:var(--stage-bg);
+      overflow:hidden;
+    }
+    canvas{position:absolute; inset:0; width:100%; height:100%;}
+    .panel{
+      background:var(--panel);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:14px;
+    }
+    h3{margin:0 0 10px 0; font-size:16px;}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    button{
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.14);
+      background:#222;
+      color:#eee;
+      padding:9px 10px;
+      border-radius:10px;
+      font-size:13px;
+    }
+    button.primary{background:#2a2a2a;}
+    button:active{transform:translateY(1px);}
+    .row{display:flex; gap:10px; align-items:center; margin:10px 0;}
+    .row > label{flex:1; color:var(--muted); font-size:13px;}
+    .row > input[type="range"]{flex:1.2;}
+    .row > input[type="number"]{width:92px;}
+    .tiny{color:var(--muted); font-size:12px;}
+    .divider{height:1px; background:rgba(255,255,255,.10); margin:12px 0;}
+    .list{
+      margin-top:10px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      padding:10px;
+      max-height:300px;
+      overflow:auto;
+    }
+    .item{
+      display:flex; align-items:center; gap:10px;
+      padding:7px 6px; border-radius:8px;
+    }
+    .item:hover{background:rgba(255,255,255,.04);}
+    .item input{transform:scale(1.05);}
+    details{
+      margin-top:12px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      padding:10px;
+      background:rgba(255,255,255,.02);
+    }
+    summary{cursor:pointer; color:#eaeaea; font-weight:600;}
+    .help{
+      margin-top:8px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .help ul{margin:8px 0 0 18px; padding:0;}
+    .help li{margin:6px 0;}
+    code{background:rgba(255,255,255,.06); padding:1px 6px; border-radius:6px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stage" id="stage">
+      <canvas id="c"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3>Управление</h3>
+
+      <div class="grid2">
+        <button id="startBtn" class="primary">Старт</button>
+        <button id="pauseBtn">Пауза</button>
+        <button id="resetBtn">Сброс</button>
+        <button id="clearBtn">Очистить след</button>
+      </div>
+
+      <div class="row">
+        <label>Скорость</label>
+        <input id="speed" type="range" min="0.1" max="3" step="0.05" value="1"/>
+        <span class="tiny" id="speedVal">1.00×</span>
+      </div>
+
+      <div class="row">
+        <label>Шариков</label>
+        <input id="count" type="range" min="1" max="160" step="1" value="1"/>
+        <input id="countNum" type="number" min="1" max="160" value="1"/>
+      </div>
+
+      <div class="row">
+        <label>Размер</label>
+        <input id="radius" type="range" min="2" max="14" step="1" value="7"/>
+        <span class="tiny" id="radiusVal">7px</span>
+      </div>
+
+      <div class="row">
+        <label>След</label>
+        <input id="trail" type="range" min="0" max="1" step="0.02" value="0.22"/>
+        <span class="tiny" id="trailVal">0.22</span>
+      </div>
+
+      <div class="row">
+        <label>Разные цвета</label>
+        <input id="multiColor" type="checkbox" checked />
+      </div>
+
+      <div class="divider"></div>
+      <h3>Траектории</h3>
+      <div class="list" id="trajList"></div>
+
+      <details open>
+        <summary>Инструкция</summary>
+        <div class="help">
+          <div><b>Что это:</b> шарики двигаются по выбранным траекториям в поле слева.</div>
+          <ul>
+            <li><b>Выбор траекторий:</b> поставь галочки. Можно выбрать <b>несколько</b> — шарики распределятся по ним.</li>
+            <li><b>Шариков:</b> увеличь ползунком — появятся новые шарики.</li>
+            <li><b>Скорость:</b> ускоряет/замедляет движение.</li>
+            <li><b>След:</b> чем больше значение, тем быстрее “стирается” след. <code>0</code> = без затухания (след почти не стирается), <code>1</code> = стирается очень быстро.</li>
+            <li><b>Очистить след:</b> очищает поле, но шарики продолжают ехать.</li>
+            <li><b>Сброс:</b> пересоздаёт шарики (фазы/распределение) и очищает поле.</li>
+            <li><b>Разные цвета:</b> если включено — у каждого шарика свой цвет.</li>
+          </ul>
+          <div style="margin-top:8px;">
+            Подсказка: включи много шариков + выбери “Звезда/Роза/Лиссажу” — получатся красивые узоры.
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const stage  = document.getElementById('stage');
+  const ctx = canvas.getContext('2d', { alpha: true });
+
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const speedEl = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+
+  const countEl = document.getElementById('count');
+  const countNum = document.getElementById('countNum');
+
+  const radiusEl = document.getElementById('radius');
+  const radiusVal = document.getElementById('radiusVal');
+
+  const trailEl = document.getElementById('trail');
+  const trailVal = document.getElementById('trailVal');
+
+  const multiColorEl = document.getElementById('multiColor');
+  const trajList = document.getElementById('trajList');
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+  function hashColor(i){
+    const h = (i * 47) % 360;
+    return `hsl(${h} 90% 55%)`;
+  }
+
+  // --- простая плавная "noise" функция (без библиотек) ---
+  function fract(x){ return x - Math.floor(x); }
+  function smoothstep(t){ return t*t*(3-2*t); }
+  function rand1(x){ return fract(Math.sin(x*127.1)*43758.5453123); }
+  function noise1D(x){
+    const i = Math.floor(x);
+    const f = x - i;
+    const a = rand1(i);
+    const b = rand1(i+1);
+    return a + (b-a)*smoothstep(f); // 0..1
+  }
+
+  // === Траектории (30+ штук) ===
+  const TRAJ = [
+    // базовые
+    { id:'line', name:'По прямой (центр)', fn:(t)=>({x:t,y:0.5}) },
+    { id:'line_top', name:'Прямая (верх)', fn:(t)=>({x:t,y:0.25}) },
+    { id:'line_bottom', name:'Прямая (низ)', fn:(t)=>({x:t,y:0.75}) },
+    { id:'line_vert', name:'Вертикаль (центр)', fn:(t)=>({x:0.5,y:t}) },
+    { id:'diag1', name:'Диагональ ↘', fn:(t)=>({x:t,y:t}) },
+    { id:'diag2', name:'Диагональ ↗', fn:(t)=>({x:t,y:1-t}) },
+
+    // круги/эллипсы/орбиты
+    { id:'circle', name:'Круг', fn:(t)=>{ const a=t*Math.PI*2; return {x:0.5+0.35*Math.cos(a), y:0.5+0.35*Math.sin(a)}; } },
+    { id:'circle_small', name:'Круг маленький', fn:(t)=>{ const a=t*Math.PI*2; return {x:0.5+0.22*Math.cos(a), y:0.5+0.22*Math.sin(a)}; } },
+    { id:'ellipse', name:'Эллипс', fn:(t)=>{ const a=t*Math.PI*2; return {x:0.5+0.42*Math.cos(a), y:0.5+0.22*Math.sin(a)}; } },
+    { id:'orbit_offset', name:'Орбита со смещением', fn:(t)=>{ const a=t*Math.PI*2; return {x:0.55+0.38*Math.cos(a), y:0.45+0.20*Math.sin(a)}; } },
+
+    // синусы
+    { id:'sine', name:'Синусоида', fn:(t)=>{ const a=t*Math.PI*2; return {x:t,y:0.5+0.22*Math.sin(a)}; } },
+    { id:'sine_fast', name:'Синусоида (частая)', fn:(t)=>{ const a=t*Math.PI*2*3; return {x:t,y:0.5+0.18*Math.sin(a)}; } },
+    { id:'cosine', name:'Косинусоида', fn:(t)=>{ const a=t*Math.PI*2; return {x:t,y:0.5+0.22*Math.cos(a)}; } },
+    { id:'wave_diag', name:'Волна по диагонали', fn:(t)=>{ const a=t*Math.PI*2; return {x:t, y:t + 0.18*Math.sin(a)}; } },
+
+    // ломаные/ступени
+    { id:'zigzag', name:'Зигзаг', fn:(t)=>{ const k=7; const p=(t*k)%1; const seg=Math.floor(t*k); const up=seg%2===0; return {x:t, y: up ? (0.22+0.56*p) : (0.78-0.56*p)}; } },
+    { id:'steps', name:'Лесенка', fn:(t)=>{ const k=10; const seg=Math.floor(t*k); const x=t; const y=0.2 + 0.6*(seg/(k-1)); return {x, y: clamp(y,0.2,0.8)}; } },
+    { id:'bounce', name:'Туда-сюда (пинг-понг)', fn:(t)=>{ const u = 1 - Math.abs(1 - 2*t); return {x:u, y:0.5}; } },
+    { id:'pendulum', name:'Маятник (дуга)', fn:(t)=>{ const a=(1 - Math.abs(1-2*t))*Math.PI; return {x:0.5+0.38*Math.cos(a), y:0.65-0.32*Math.sin(a)}; } },
+
+    // прямоугольник/треугольник/многоугольник
+    { id:'rect', name:'Прямоугольник', fn:(t)=>{
+      const x0=0.18,x1=0.82,y0=0.22,y1=0.78;
+      const L=2*((x1-x0)+(y1-y0));
+      const d=t*L, w=x1-x0, h=y1-y0;
+      if(d<w) return {x:x0+d,y:y0};
+      if(d<w+h) return {x:x1,y:y0+(d-w)};
+      if(d<2*w+h) return {x:x1-(d-(w+h)),y:y1};
+      return {x:x0,y:y1-(d-(2*w+h))};
+    }},
+    { id:'triangle', name:'Треугольник', fn:(t)=>{
+      const A={x:0.2,y:0.8}, B={x:0.5,y:0.2}, C={x:0.8,y:0.8};
+      const edges = [
+        {p:A,q:B, len:Math.hypot(B.x-A.x,B.y-A.y)},
+        {p:B,q:C, len:Math.hypot(C.x-B.x,C.y-B.y)},
+        {p:C,q:A, len:Math.hypot(A.x-C.x,A.y-C.y)},
+      ];
+      const L = edges.reduce((s,e)=>s+e.len,0);
+      let d = t*L;
+      for(const e of edges){
+        if(d <= e.len){
+          const u = d/e.len;
+          return {x:e.p.x + (e.q.x-e.p.x)*u, y:e.p.y + (e.q.y-e.p.y)*u};
+        }
+        d -= e.len;
+      }
+      return A;
+    }},
+    { id:'pentagon', name:'Пятиугольник', fn:(t)=>{
+      const pts = [];
+      const cx=0.5, cy=0.5, r=0.34;
+      for(let i=0;i<5;i++){
+        const a = -Math.PI/2 + i*(Math.PI*2/5);
+        pts.push({x:cx+r*Math.cos(a), y:cy+r*Math.sin(a)});
+      }
+      pts.push(pts[0]);
+      // по периметру
+      let lens=[], L=0;
+      for(let i=0;i<5;i++){
+        const p=pts[i], q=pts[i+1];
+        const len=Math.hypot(q.x-p.x,q.y-p.y);
+        lens.push(len); L+=len;
+      }
+      let d=t*L;
+      for(let i=0;i<5;i++){
+        if(d<=lens[i]){
+          const u=d/lens[i];
+          return {x:pts[i].x+(pts[i+1].x-pts[i].x)*u, y:pts[i].y+(pts[i+1].y-pts[i].y)*u};
+        }
+        d-=lens[i];
+      }
+      return pts[0];
+    }},
+
+    // спирали
+    { id:'spiral', name:'Спираль', fn:(t)=>{
+      const a=t*Math.PI*2*3;
+      const r=0.06+0.36*t;
+      return {x:0.5+r*Math.cos(a), y:0.5+r*Math.sin(a)};
+    }},
+    { id:'square_spiral', name:'Квадратная спираль', fn:(t)=>{
+      // движемся по квадратам, постепенно расширяясь
+      const turns = 10;
+      const u = t * turns;
+      const k = Math.floor(u);
+      const f = u - k;
+      const layer = Math.floor(k/4) + 1;
+      const side = k % 4;
+      const base = 0.5;
+      const step = 0.03 * layer;
+      const x0 = base - step, x1 = base + step;
+      const y0 = base - step, y1 = base + step;
+      if(side===0) return {x: x0 + (x1-x0)*f, y:y0};
+      if(side===1) return {x: x1, y: y0 + (y1-y0)*f};
+      if(side===2) return {x: x1 - (x1-x0)*f, y:y1};
+      return {x: x0, y: y1 - (y1-y0)*f};
+    }},
+
+    // красивые кривые
+    { id:'eight', name:'Восьмёрка', fn:(t)=>{
+      const a=t*Math.PI*2;
+      return {x:0.5+0.35*Math.sin(a), y:0.5+0.24*Math.sin(2*a)};
+    }},
+    { id:'infinity', name:'∞ (лемниската)', fn:(t)=>{
+      const a=t*Math.PI*2;
+      const denom = 1 + Math.sin(a)*Math.sin(a);
+      const x = Math.cos(a)/denom;
+      const y = (Math.sin(a)*Math.cos(a))/denom;
+      return {x:0.5+0.42*x, y:0.5+0.42*y};
+    }},
+    { id:'lissajous', name:'Лиссажу (3:2)', fn:(t)=>{
+      const a=t*Math.PI*2;
+      return {x:0.5+0.36*Math.sin(3*a+Math.PI/2), y:0.5+0.26*Math.sin(2*a)};
+    }},
+    { id:'lissajous2', name:'Лиссажу (5:4)', fn:(t)=>{
+      const a=t*Math.PI*2;
+      return {x:0.5+0.36*Math.sin(5*a), y:0.5+0.26*Math.sin(4*a+Math.PI/3)};
+    }},
+    { id:'flower', name:'Роза (цветок)', fn:(t)=>{
+      const a=t*Math.PI*2;
+      const k=7; // лепестки
+      const r=0.34*Math.cos(k*a);
+      return {x:0.5+r*Math.cos(a), y:0.5+r*Math.sin(a)};
+    }},
+    { id:'star', name:'Звезда (5 лучей)', fn:(t)=>{
+      // звезда как ломаная по 5 вершинам (соединение через одну)
+      const cx=0.5, cy=0.5, R=0.36;
+      const pts=[];
+      for(let i=0;i<5;i++){
+        const a=-Math.PI/2 + i*(Math.PI*2/5);
+        pts.push({x:cx+R*Math.cos(a), y:cy+R*Math.sin(a)});
+      }
+      const order=[0,2,4,1,3,0];
+      const path=order.map(i=>pts[i]);
+      // по сегментам
+      let lens=[], L=0;
+      for(let i=0;i<path.length-1;i++){
+        const p=path[i], q=path[i+1];
+        const len=Math.hypot(q.x-p.x,q.y-p.y);
+        lens.push(len); L+=len;
+      }
+      let d=t*L;
+      for(let i=0;i<lens.length;i++){
+        if(d<=lens[i]){
+          const u=d/lens[i];
+          return {x:path[i].x+(path[i+1].x-path[i].x)*u, y:path[i].y+(path[i+1].y-path[i].y)*u};
+        }
+        d-=lens[i];
+      }
+      return path[0];
+    }},
+    { id:'heart', name:'Сердце', fn:(t)=>{
+      const a=t*Math.PI*2;
+      const x = 16*Math.pow(Math.sin(a),3);
+      const y = 13*Math.cos(a) - 5*Math.cos(2*a) - 2*Math.cos(3*a) - Math.cos(4*a);
+      return { x: 0.5 + (x/18)*0.35, y: 0.55 - (y/18)*0.35 };
+    }},
+    { id:'hypotrochoid', name:'Гипотрохоида', fn:(t)=>{
+      const a=t*Math.PI*2;
+      const R=0.40, r=0.13, d=0.22;
+      const x = (R-r)*Math.cos(a) + d*Math.cos(((R-r)/r)*a);
+      const y = (R-r)*Math.sin(a) - d*Math.sin(((R-r)/r)*a);
+      return {x:0.5+x, y:0.5+y};
+    }},
+    { id:'epitrochoid', name:'Эпитрохоида', fn:(t)=>{
+      const a=t*Math.PI*2;
+      const R=0.22, r=0.12, d=0.20;
+      const x = (R+r)*Math.cos(a) - d*Math.cos(((R+r)/r)*a);
+      const y = (R+r)*Math.sin(a) - d*Math.sin(((R+r)/r)*a);
+      return {x:0.5+x, y:0.5+y};
+    }},
+
+    // кривые/полеты
+    { id:'bezier', name:'Кривая Bezier', fn:(t)=>{
+      const p0={x:0.12,y:0.78}, p1={x:0.25,y:0.08}, p2={x:0.80,y:0.92}, p3={x:0.88,y:0.30};
+      const u=1-t;
+      return {
+        x: u*u*u*p0.x + 3*u*u*t*p1.x + 3*u*t*t*p2.x + t*t*t*p3.x,
+        y: u*u*u*p0.y + 3*u*u*t*p1.y + 3*u*t*t*p2.y + t*t*t*p3.y
+      };
+    }},
+    { id:'boomerang', name:'Бумеранг (туда-обратно дугой)', fn:(t)=>{
+      // x pingpong, y дуга
+      const u = 1 - Math.abs(1 - 2*t);
+      const arc = Math.sin(u*Math.PI);
+      return { x: u, y: 0.5 - 0.28*arc };
+    }},
+
+    // случайная плавная
+    { id:'smooth_random', name:'Случайная плавная (noise)', fn:(t)=>{
+      const x = t;
+      const y = 0.2 + 0.6*noise1D(t*6.0);
+      return {x, y};
+    }},
+    { id:'smooth_random2', name:'Случайная плавная (noise 2)', fn:(t)=>{
+      const x = 0.2 + 0.6*noise1D(10 + t*5.0);
+      const y = 0.2 + 0.6*noise1D(40 + t*5.0);
+      return {x, y};
+    }},
+  ];
+
+  // Multi-select list
+  const selected = new Set(['line']);
+  function renderTrajList(){
+    trajList.innerHTML = '';
+    TRAJ.forEach(tr => {
+      const row = document.createElement('label');
+      row.className = 'item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = selected.has(tr.id);
+      cb.addEventListener('change', () => {
+        if (cb.checked) selected.add(tr.id);
+        else selected.delete(tr.id);
+        if (selected.size === 0) selected.add('line');
+        renderTrajList();
+        resetBalls();
+      });
+      const name = document.createElement('div');
+      name.textContent = tr.name;
+      name.style.flex = '1';
+      row.appendChild(cb);
+      row.appendChild(name);
+      trajList.appendChild(row);
+    });
+  }
+  renderTrajList();
+
+  function getTrajFn(id){
+    return TRAJ.find(t => t.id === id)?.fn || TRAJ[0].fn;
+  }
+
+  // Resize
+  function resize(){
+    const rect = stage.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    clearAll(true);
+  }
+  window.addEventListener('resize', resize);
+
+  // Balls
+  let balls = [];
+  let running = true;
+  let t0 = performance.now();
+
+  function resetBalls(){
+    const n = parseInt(countNum.value, 10);
+    const sel = [...selected];
+    balls = Array.from({length:n}, (_,i) => ({
+      i,
+      trajId: sel[i % sel.length],
+      phase: (i / Math.max(1,n)) % 1,
+      color: multiColorEl.checked ? hashColor(i) : (getComputedStyle(document.documentElement).getPropertyValue('--ball').trim() || 'red'),
+    }));
+    clearAll(true);
+  }
+
+  function clearAll(full=false){
+    const rect = stage.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    if (full){
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--stage-bg').trim() || '#111';
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  // UI
+  function syncSpeed(){ speedVal.textContent = `${(+speedEl.value).toFixed(2)}×`; }
+  function syncRadius(){ radiusVal.textContent = `${radiusEl.value}px`; }
+  function syncTrail(){ trailVal.textContent = `${(+trailEl.value).toFixed(2)}`; }
+
+  speedEl.addEventListener('input', syncSpeed);
+  radiusEl.addEventListener('input', syncRadius);
+  trailEl.addEventListener('input', syncTrail);
+
+  countEl.addEventListener('input', () => {
+    countNum.value = countEl.value;
+    resetBalls();
+  });
+  countNum.addEventListener('input', () => {
+    const v = clamp(parseInt(countNum.value || '1',10), 1, 160);
+    countNum.value = v;
+    countEl.value = v;
+    resetBalls();
+  });
+
+  multiColorEl.addEventListener('change', () => resetBalls());
+
+  startBtn.addEventListener('click', () => { running = true; t0 = performance.now(); });
+  pauseBtn.addEventListener('click', () => {
+    running = !running;
+    if (running) t0 = performance.now();
+    pauseBtn.textContent = running ? 'Пауза' : 'Продолжить';
+  });
+  resetBtn.addEventListener('click', () => resetBalls());
+  clearBtn.addEventListener('click', () => clearAll(true));
+
+  // Trail fade with proper stage background color
+  function hexToRgbLike(s){
+    // supports #rgb/#rrggbb or rgb(...)
+    s = (s||'').trim();
+    if (s.startsWith('rgb')){
+      const m = s.match(/(\d+)[^\d]+(\d+)[^\d]+(\d+)/);
+      if(m) return {r:+m[1],g:+m[2],b:+m[3]};
+    }
+    if (s.startsWith('#')){
+      const h = s.slice(1);
+      const full = h.length===3 ? h.split('').map(ch=>ch+ch).join('') : h;
+      const n = parseInt(full,16);
+      return {r:(n>>16)&255,g:(n>>8)&255,b:n&255};
+    }
+    // fallback: dark
+    return {r:17,g:17,b:17};
+  }
+
+  // Animation
+  function step(now){
+    const rect = stage.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+
+    const fade = +trailEl.value; // 0..1
+    const bgStr = getComputedStyle(document.documentElement).getPropertyValue('--stage-bg').trim() || '#111';
+    const bg = hexToRgbLike(bgStr);
+
+    if (fade > 0){
+      ctx.fillStyle = `rgba(${bg.r},${bg.g},${bg.b},${fade})`;
+      ctx.fillRect(0,0,W,H);
+    } else {
+      ctx.fillStyle = `rgb(${bg.r},${bg.g},${bg.b})`;
+      ctx.fillRect(0,0,W,H);
+    }
+
+    const speed = +speedEl.value;
+    const r = +radiusEl.value;
+
+    if (running){
+      const dt = Math.min((now - t0)/1000, 0.05);
+      t0 = now;
+      for (const b of balls){
+        b.phase = (b.phase + dt * 0.18 * speed) % 1;
+      }
+    } else {
+      t0 = now;
+    }
+
+    for (const b of balls){
+      const fn = getTrajFn(b.trajId);
+      const p = fn(b.phase);
+      const x = clamp(p.x,0,1) * W;
+      const y = clamp(p.y,0,1) * H;
+
+      ctx.beginPath();
+      ctx.fillStyle = multiColorEl.checked ? b.color : (getComputedStyle(document.documentElement).getPropertyValue('--ball').trim() || '#ff0000');
+      ctx.arc(x, y, r, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  // init
+  syncSpeed(); syncRadius(); syncTrail();
+  resize();
+  resetBalls();
+  requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>
